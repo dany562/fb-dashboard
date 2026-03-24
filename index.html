@@ -57,7 +57,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-h
 .loader p{color:var(--tx2);font-size:13px}
 
 /* ── CONTAINER ── */
-.wrap{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:28px 32px 60px;display:none}
+.wrap{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:28px 32px 60px;display:none;overflow:hidden}
 .wrap.on{display:block}
 
 /* ── HEADER ── */
@@ -96,10 +96,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-h
 /* ── CHARTS ── */
 .cgrid{display:grid;gap:12px;margin-bottom:22px}
 .cgrid.c2{grid-template-columns:1.6fr 1fr}
-.cc{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:20px}
+.cc{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:20px;min-width:0;overflow:hidden}
 .cc h3{font-size:13.5px;font-weight:600;margin-bottom:3px}
 .cc .csub{font-size:11.5px;color:var(--tx3);margin-bottom:16px}
-.cc canvas{width:100%!important}
+.cc .chart-wrap{position:relative;width:100%;height:260px;max-height:260px}
+.cc canvas{position:absolute;top:0;left:0;width:100%!important;height:100%!important}
 
 /* ── TABLE ── */
 .tcard{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:20px;overflow-x:auto;margin-bottom:22px}
@@ -195,16 +196,16 @@ td.hl{color:var(--ac);font-weight:600}
   <div class="krow an" style="animation-delay:.15s" id="kpis"></div>
 
   <div class="cgrid c2 an" style="animation-delay:.2s">
-    <div class="cc"><h3>Daily Performance</h3><div class="csub">Spend & clicks over time</div><canvas id="chDaily" height="220"></canvas></div>
-    <div class="cc"><h3>Gender Split</h3><div class="csub">Share of ad spend</div><canvas id="chGender" height="220"></canvas></div>
+    <div class="cc"><h3>Daily Performance</h3><div class="csub">Spend & clicks over time</div><div class="chart-wrap"><canvas id="chDaily"></canvas></div></div>
+    <div class="cc"><h3>Gender Split</h3><div class="csub">Share of ad spend</div><div class="chart-wrap"><canvas id="chGender"></canvas></div></div>
   </div>
   <div class="cgrid c2 an" style="animation-delay:.25s">
-    <div class="cc"><h3>Spend by Age</h3><div class="csub">Budget by demographic</div><canvas id="chAgeS" height="220"></canvas></div>
-    <div class="cc"><h3>CTR by Age</h3><div class="csub">Click-through rate</div><canvas id="chAgeC" height="220"></canvas></div>
+    <div class="cc"><h3>Spend by Age</h3><div class="csub">Budget by demographic</div><div class="chart-wrap"><canvas id="chAgeS"></canvas></div></div>
+    <div class="cc"><h3>CTR by Age</h3><div class="csub">Click-through rate</div><div class="chart-wrap"><canvas id="chAgeC"></canvas></div></div>
   </div>
   <div class="cgrid c2 an" style="animation-delay:.3s">
-    <div class="cc"><h3>Avg Spend by Day of Week</h3><div class="csub">Best performing days</div><canvas id="chDowS" height="200"></canvas></div>
-    <div class="cc"><h3>Avg Clicks by Day of Week</h3><div class="csub">Peak engagement days</div><canvas id="chDowC" height="200"></canvas></div>
+    <div class="cc"><h3>Avg Spend by Day of Week</h3><div class="csub">Best performing days</div><div class="chart-wrap"><canvas id="chDowS"></canvas></div></div>
+    <div class="cc"><h3>Avg Clicks by Day of Week</h3><div class="csub">Peak engagement days</div><div class="chart-wrap"><canvas id="chDowC"></canvas></div></div>
   </div>
   <div class="tcard an" style="animation-delay:.35s">
     <h3>Daily Breakdown</h3>
