@@ -136,9 +136,9 @@ td.hl{color:var(--ac);font-weight:600}
     <h2>Connect a Google Sheet</h2>
     <p>Paste your client's published CSV link. The dashboard builds itself and stays live.</p>
     <div class="steps">
-      <div class="stp"><div class="stp-n">1</div><div class="stp-t">In the client's Google Sheet &rarr; <strong>File &rarr; Share &rarr; Publish to web</strong></div></div>
-      <div class="stp"><div class="stp-n">2</div><div class="stp-t">Pick the data tab, format = <strong>CSV</strong>, click Publish</div></div>
-      <div class="stp"><div class="stp-n">3</div><div class="stp-t">Paste the URL below &mdash; or add <strong>?sheet=URL</strong> to this page's address to auto-load</div></div>
+      <div class="stp"><div class="stp-n">1</div><div class="stp-t">Make sure the Google Sheet is either <strong>Published to web</strong> (File &rarr; Share &rarr; Publish to web &rarr; CSV) or shared as <strong>"Anyone with link can view"</strong></div></div>
+      <div class="stp"><div class="stp-n">2</div><div class="stp-t">Paste <strong>any URL</strong> from that sheet below &mdash; the edit link, the published link, anything. The dashboard will auto-detect the right format.</div></div>
+      <div class="stp"><div class="stp-n">3</div><div class="stp-t">To link from your management sheet, add <strong>?sheet=URL</strong> to this page's address</div></div>
     </div>
     <div class="serr" id="serr"></div>
     <div class="url-row">
@@ -225,7 +225,7 @@ let URL='',ALL=[],F=[],CH={};
 (function(){
   const p=new URLSearchParams(location.search);
   const s=p.get('sheet');
-  if(s){URL=s;$('setup').classList.add('off');fetchData();return}
+  if(s){URL=fixSheetUrl(s);$('setup').classList.add('off');fetchData();return}
   $('setup').classList.remove('off');
 })();
 
@@ -238,15 +238,47 @@ function doConnect(){
   let raw=$('surl').value.trim();
   const e=$('serr');e.textContent='';
   if(!raw){e.textContent='Paste a URL.';return}
-  // Auto-fix common URL issues
-  if(raw.includes('/pubhtml'))raw=raw.replace('/pubhtml','/pub?output=csv');
-  else if(raw.includes('/pub?')&&!raw.includes('output=csv'))raw=raw.replace('/pub?','/pub?output=csv&');
-  else if(raw.endsWith('/pub'))raw+='?output=csv';
-  else if(raw.includes('/edit'))raw=raw.replace(/\/edit.*/,'/pub?output=csv');
   if(!raw.includes('docs.google.com/spreadsheets')){e.textContent='Not a Google Sheets link.';return}
-  URL=raw;
+  URL=fixSheetUrl(raw);
   $('sbtn').disabled=true;$('sbtn').textContent='Connecting\u2026';
   fetchData();
+}
+
+function fixSheetUrl(raw){
+  // Extract the spreadsheet key (works for both /d/e/XXXX and /d/XXXX formats)
+  let base='',gid='',isPublished=false;
+
+  // Extract gid if present
+  const gidMatch=raw.match(/gid=(\d+)/);
+  if(gidMatch)gid=gidMatch[1];
+
+  // Case 1: Already a /d/e/ published URL
+  if(raw.includes('/d/e/')){
+    isPublished=true;
+    const m=raw.match(/(https:\/\/docs\.google\.com\/spreadsheets\/d\/e\/[^\/]+)/);
+    if(m)base=m[1];
+  }
+  // Case 2: Regular /d/KEY/ edit URL — convert to export URL
+  else{
+    const m=raw.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if(m)base='https://docs.google.com/spreadsheets/d/'+m[1]+'/export';
+  }
+
+  if(!base)return raw; // fallback
+
+  // Build clean CSV URL
+  if(isPublished){
+    // Published URL: use /pub?output=csv
+    let url=base+'/pub?output=csv';
+    if(gid)url+='&gid='+gid;
+    url+='&single=true';
+    return url;
+  }else{
+    // Direct export (sheet must be "anyone with link can view")
+    let url=base+'?format=csv';
+    if(gid)url+='&gid='+gid;
+    return url;
+  }
 }
 
 function doSwitch(){
@@ -265,6 +297,13 @@ function fetchData(){
     download:true,header:false,skipEmptyLines:true,
     complete:function(res){
       if(!res.data||!res.data.length){sErr('No data found. Check the sheet is published as CSV.');$('loader').classList.add('off');return}
+
+      // --- Check if Google returned HTML instead of CSV ---
+      const firstCell=(res.data[0]&&res.data[0][0]||'').toString().trim();
+      if(firstCell.startsWith('<!DOCTYPE')||firstCell.startsWith('<html')||firstCell.includes('<head')){
+        sErr('Google returned an HTML page instead of CSV data. Make sure the sheet is shared as "Anyone with link can view" (Share button → General access → Anyone with the link). Then try again.');
+        $('loader').classList.add('off');return;
+      }
 
       // --- Find the header row (scan first 10 rows for one containing "date" and "spent") ---
       let hdrIdx=-1;
