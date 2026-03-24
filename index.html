@@ -262,30 +262,69 @@ function fetchData(){
   $('loader').classList.remove('off');
   const u=URL+(URL.includes('?')?'&':'?')+'_c='+Date.now();
   Papa.parse(u,{
-    download:true,header:true,skipEmptyLines:true,
+    download:true,header:false,skipEmptyLines:true,
     complete:function(res){
       if(!res.data||!res.data.length){sErr('No data found. Check the sheet is published as CSV.');$('loader').classList.add('off');return}
-      const s=res.data[0],ks=Object.keys(s);
-      const fc=kw=>ks.find(k=>kw.some(w=>k.toLowerCase().includes(w)))||null;
-      const dC=fc(['date start','date_start','date']);
-      const asC=fc(['ad set name','adset_name','ad_set']);
-      const cpC=fc(['campaign name','campaign_name']);
-      const agC=fc(['age']);
-      const geC=fc(['gender']);
-      const crC=fc(['ctr','click-through']);
-      const clC=fc(['link click','link_click','clicks']);
-      const plC=fc(['cost per lead','cost_per_lead','cpl']);
-      const spC=fc(['amount spent','amount_spent','spend']);
-      const acC=fc(['account name','account_name']);
-      if(!dC||!spC){sErr('Can\'t find "Date Start" or "Amount spent" columns.');$('loader').classList.add('off');return}
-      ALL=res.data.map(r=>({
-        d:r[dC]||'',as:r[asC]||'',cp:r[cpC]||'',ag:r[agC]||'',
-        ge:(r[geC]||'').toLowerCase(),
-        cr:parseFloat(r[crC])||0,cl:parseInt(r[clC])||0,
-        pl:parseFloat(r[plC])||0,sp:parseFloat(r[spC])||0,
-        ac:r[acC]||''
+
+      // --- Find the header row (scan first 10 rows for one containing "date" and "spent") ---
+      let hdrIdx=-1;
+      for(let i=0;i<Math.min(res.data.length,10);i++){
+        const row=res.data[i].map(c=>(c||'').toString().toLowerCase().trim());
+        const joined=row.join(' ');
+        if((joined.includes('date'))&&(joined.includes('spent')||joined.includes('spend')||joined.includes('amount'))){hdrIdx=i;break}
+      }
+      // Fallback: look for any row with "date" in it
+      if(hdrIdx===-1){
+        for(let i=0;i<Math.min(res.data.length,10);i++){
+          const row=res.data[i].map(c=>(c||'').toString().toLowerCase().trim());
+          if(row.some(c=>c.includes('date'))){hdrIdx=i;break}
+        }
+      }
+      if(hdrIdx===-1){sErr('Could not find header row. Make sure your sheet has column headers like "Date Start", "Amount spent", etc.');$('loader').classList.add('off');return}
+
+      const headers=res.data[hdrIdx].map(c=>(c||'').toString().trim());
+      const dataRows=res.data.slice(hdrIdx+1);
+
+      // --- Flexible column finder ---
+      const fc=kw=>{ 
+        // First try exact-ish match
+        let idx=headers.findIndex(h=>kw.some(w=>h.toLowerCase()===w));
+        // Then try contains match
+        if(idx===-1) idx=headers.findIndex(h=>kw.some(w=>h.toLowerCase().includes(w)));
+        return idx;
+      };
+      const iD=fc(['date start','date_start','date','reporting starts']);
+      const iAS=fc(['ad set name','adset name','adset_name','ad_set_name']);
+      const iCP=fc(['campaign name','campaign_name']);
+      const iAG=fc(['age']);
+      const iGE=fc(['gender']);
+      const iCR=fc(['ctr (link click-through rate)','ctr','click-through rate','clickthrough']);
+      const iCL=fc(['link clicks','link_clicks','clicks']);
+      const iPL=fc(['cost per leads (total)','cost per lead','cost_per_lead','cpl']);
+      const iSP=fc(['amount spent','amount_spent','spend','cost']);
+      const iAC=fc(['account name','account_name']);
+
+      if(iD===-1||iSP===-1){
+        // Show debug info to help diagnose
+        const found=headers.slice(0,15).join(', ');
+        sErr('Can\'t match columns. Found headers: '+found+'. Need "Date Start" and "Amount spent".');
+        $('loader').classList.add('off');return;
+      }
+
+      ALL=dataRows.map(r=>({
+        d:(r[iD]||'').toString().trim(),
+        as:iAS>-1?(r[iAS]||'').toString().trim():'',
+        cp:iCP>-1?(r[iCP]||'').toString().trim():'',
+        ag:iAG>-1?(r[iAG]||'').toString().trim():'',
+        ge:iGE>-1?(r[iGE]||'').toString().toLowerCase().trim():'',
+        cr:iCR>-1?parseFloat(r[iCR])||0:0,
+        cl:iCL>-1?parseInt(r[iCL])||0:0,
+        pl:iPL>-1?parseFloat(r[iPL])||0:0,
+        sp:iSP>-1?parseFloat(r[iSP])||0:0,
+        ac:iAC>-1?(r[iAC]||'').toString().trim():'',
       })).filter(r=>r.d&&r.d.match(/^\d{4}/));
-      if(!ALL.length){sErr('Sheet has no valid date rows.');$('loader').classList.add('off');return}
+
+      if(!ALL.length){sErr('Headers found but no data rows with valid dates. Check your sheet has data below the header row.');$('loader').classList.add('off');return}
       const nm=ALL.find(r=>r.ac)?.ac||'Client';
       $('cname').textContent=nm.trim();
       document.title=nm.trim()+' \u2014 FB Ads Dashboard';
