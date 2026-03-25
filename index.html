@@ -189,13 +189,6 @@ td.hl{color:var(--ac);font-weight:600}
 let ADURL='',LEADURL='',ALL=[],LEADS=[],F=[],FL=[],CH={};
 function $(id){return document.getElementById(id)}
 
-(function(){
-  const p=new URLSearchParams(location.search);
-  const s=p.get('sheet'),l=p.get('leads');
-  if(s){ADURL=fixUrl(s);LEADURL=l?fixUrl(l):'';$('setup').classList.add('off');fetchAll();return}
-  $('setup').classList.remove('off');
-})();
-
 function fixUrl(raw){
   let base='',gid='';const gm=raw.match(/gid=(\d+)/);if(gm)gid=gm[1];
   if(raw.includes('/d/e/')){const m=raw.match(/(https:\/\/docs\.google\.com\/spreadsheets\/d\/e\/[^\/]+)/);if(m)base=m[1];let u=base+'/pub?output=csv';if(gid)u+='&gid='+gid;u+='&single=true';return u;}
@@ -450,6 +443,14 @@ function rTable(){
     return`<tr><td>${dn}, ${d}</td><td class="hl">$${r.s.toFixed(2)}</td><td>${r.c}</td><td>${ac}%</td><td>${lc||'—'}</td><td>${cpl}</td><td class="bcell"><div class="bbg" style="width:100%"></div><div class="bfill" style="width:${pct}%"></div></td></tr>`;
   }).join('');
 }
+
+// ═══ BOOT ═══
+(function boot(){
+  const p=new URLSearchParams(location.search);
+  const s=p.get('sheet'),l=p.get('leads');
+  if(s){ADURL=fixUrl(s);LEADURL=l?fixUrl(l):'';$('setup').classList.add('off');fetchAll();return}
+  $('setup').classList.remove('off');
+})();
 </script>
 </body>
 </html>
