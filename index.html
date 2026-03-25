@@ -335,7 +335,6 @@ function rKPI(){
     {l:'Leads',v:lc.toLocaleString(),d:delta(lc,plc),c:'var(--cy)',bg:'var(--cy-s)',i:'\uD83C\uDFAF'},
     {l:'Cost / Lead',v:cpal>0?'$'+cpal.toFixed(2):'\u2014',d:delta(cpal,pcpal,true),c:'var(--rs)',bg:'var(--rs-s)',i:'\uD83D\uDCB8'},
     {l:'Conv. Rate',v:convRate.toFixed(2)+'%',d:delta(convRate,pconvRate),c:'var(--pp)',bg:'var(--pp-s)',i:'\uD83D\uDD04'},
-    {l:'Daily Spend',v:'$'+ad.toFixed(2),d:delta(ad,pad,true),c:'var(--gn)',bg:'var(--gn-s)',i:'\uD83D\uDCC5'},
   ];
   $('kpis').innerHTML=k.map(k=>`<div class="kcard"><div class="kico" style="background:${k.bg};color:${k.c}">${k.i}</div><div class="klab">${k.l}</div><div class="kval" style="color:${k.c}">${k.v}</div>${k.d}</div>`).join('');
 }
