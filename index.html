@@ -261,39 +261,81 @@ function done(){
 }
 
 function fetchAds(cb){
-  const u=ADURL+(ADURL.includes('?')?'&':'?')+'_c='+Date.now();
-  Papa.parse(u,{download:true,header:false,skipEmptyLines:true,complete:function(res){
-    if(!res.data||!res.data.length){sErr('No data found on "'+AD_TAB+'" tab. Check the tab exists and sheet is shared.');$('loader').classList.add('off');return}
-    const c0=(res.data[0]&&res.data[0][0]||'').toString();
-    if(c0.includes('<!DOCTYPE')||c0.includes('<html')){sErr('Got HTML instead of CSV. Set sheet to "Anyone with link → Viewer".');$('loader').classList.add('off');return}
-    let hi=-1;for(let i=0;i<Math.min(res.data.length,10);i++){const j=res.data[i].map(c=>(c||'').toString().toLowerCase()).join(' ');if(j.includes('date')&&(j.includes('spent')||j.includes('spend'))){hi=i;break}}
-    if(hi===-1)for(let i=0;i<Math.min(res.data.length,10);i++){if(res.data[i].some(c=>(c||'').toString().toLowerCase().includes('date'))){hi=i;break}}
-    if(hi===-1){sErr('Can\'t find header row on "'+AD_TAB+'" tab. Found: '+((res.data[0]||[]).slice(0,5).join(', ')));$('loader').classList.add('off');return}
-    const H=res.data[hi].map(c=>(c||'').toString().trim()),D=res.data.slice(hi+1);
+  fetchCSV(ADURL,function(data){
+    if(!data.length){sErr('No data on "'+AD_TAB+'" tab.');$('loader').classList.add('off');return}
+    const c0=(data[0][0]||'').toString();
+    if(c0.includes('<!DOCTYPE')||c0.includes('<html')||c0.includes('google.visualization')){
+      sErr('Got HTML/JS instead of CSV. Make sure sheet is shared as "Anyone with link → Viewer".');$('loader').classList.add('off');return;
+    }
+    // Find header row
+    let hi=-1;
+    for(let i=0;i<Math.min(data.length,15);i++){
+      const j=data[i].map(c=>c.toLowerCase()).join(' ');
+      if(j.includes('date')&&(j.includes('spent')||j.includes('spend')||j.includes('amount'))){hi=i;break}
+    }
+    if(hi===-1){
+      for(let i=0;i<Math.min(data.length,15);i++){
+        if(data[i].some(c=>c.toLowerCase().includes('date start'))){hi=i;break}
+      }
+    }
+    if(hi===-1){
+      for(let i=0;i<Math.min(data.length,15);i++){
+        if(data[i].some(c=>c.toLowerCase().includes('date'))){hi=i;break}
+      }
+    }
+    if(hi===-1){
+      // Show what we got for debugging
+      const preview=data.slice(0,3).map((r,i)=>'Row'+i+': ['+r.slice(0,4).join(', ')+']').join(' | ');
+      sErr('Can\'t find header row on "'+AD_TAB+'" tab. First rows: '+preview);
+      $('loader').classList.add('off');return;
+    }
+    const H=data[hi],D=data.slice(hi+1);
     const fc=kw=>{let i=H.findIndex(h=>kw.some(w=>h.toLowerCase()===w));if(i===-1)i=H.findIndex(h=>kw.some(w=>h.toLowerCase().includes(w)));return i};
     const iD=fc(['date start','date_start','date']),iAS=fc(['ad set name']),iCP=fc(['campaign name']),iAG=fc(['age']),iGE=fc(['gender']),iCR=fc(['ctr (link click-through rate)','ctr']),iCL=fc(['link clicks','clicks']),iPL=fc(['cost per leads (total)','cost per lead']),iSP=fc(['amount spent','spend']),iAC=fc(['account name']);
-    if(iD===-1||iSP===-1){sErr('Need "Date Start" & "Amount spent" on "'+AD_TAB+'" tab. Found: '+H.slice(0,8).join(', '));$('loader').classList.add('off');return}
+    if(iD===-1||iSP===-1){sErr('Need "Date Start" & "Amount spent" columns. Found: '+H.slice(0,8).join(', '));$('loader').classList.add('off');return}
     ALL=D.map(r=>({d:(r[iD]||'').trim(),as:iAS>-1?(r[iAS]||'').trim():'',cp:iCP>-1?(r[iCP]||'').trim():'',ag:iAG>-1?(r[iAG]||'').trim():'',ge:iGE>-1?(r[iGE]||'').toLowerCase().trim():'',cr:iCR>-1?pf(r[iCR]):0,cl:iCL>-1?pi(r[iCL]):0,pl:iPL>-1?pf(r[iPL]):0,sp:iSP>-1?pf(r[iSP]):0,ac:iAC>-1?(r[iAC]||'').trim():''})).filter(r=>r.d&&r.d.match(/^\d{4}/));
+    if(!ALL.length){sErr('Headers found but no data rows with valid dates on "'+AD_TAB+'" tab.');$('loader').classList.add('off');return}
     $('cname').textContent=(ALL.find(r=>r.ac)?.ac||'Client').trim();cb();
-  },error:function(e){sErr('Failed to fetch "'+AD_TAB+'" tab. Check sharing settings. '+(e?.message||''));$('loader').classList.add('off')}});
+  },function(err){sErr('Failed to fetch "'+AD_TAB+'" tab: '+err);$('loader').classList.add('off')});
 }
 
 function fetchLeads(cb){
-  const u=LEADURL+(LEADURL.includes('?')?'&':'?')+'_c='+Date.now();
-  Papa.parse(u,{download:true,header:false,skipEmptyLines:true,complete:function(res){
-    if(!res.data||!res.data.length||(res.data[0][0]||'').toString().includes('<!DOCTYPE')){LEADS=[];cb();return}
-    let hi=-1;for(let i=0;i<Math.min(res.data.length,10);i++){const j=res.data[i].map(c=>(c||'').toString().toLowerCase()).join(' ');if(j.includes('date')&&j.includes('name')){hi=i;break}}
+  fetchCSV(LEADURL,function(data){
+    if(!data.length||(data[0][0]||'').includes('<!DOCTYPE')||(data[0][0]||'').includes('google.visualization')){LEADS=[];cb();return}
+    let hi=-1;
+    for(let i=0;i<Math.min(data.length,10);i++){
+      const j=data[i].map(c=>c.toLowerCase()).join(' ');
+      if(j.includes('date')&&j.includes('name')){hi=i;break}
+    }
+    if(hi===-1){
+      // Try looser match
+      for(let i=0;i<Math.min(data.length,10);i++){
+        if(data[i].some(c=>c.toLowerCase()==='date')){hi=i;break}
+      }
+    }
     if(hi===-1){LEADS=[];cb();return}
-    const H=res.data[hi].map(c=>(c||'').toString().trim()),D=res.data.slice(hi+1);
+    const H=data[hi],D=data.slice(hi+1);
     const fc=kw=>{let i=H.findIndex(h=>kw.some(w=>h.toLowerCase()===w));if(i===-1)i=H.findIndex(h=>kw.some(w=>h.toLowerCase().includes(w)));return i};
-    const iD=fc(['date']),iNm=fc(['name']),iPh=fc(['phone number','phone']),iRe=6,iNI=7,iBC=9,iBQ=10,iQu=11,iDT=13,iAm=14,iPC=15;
+    const iD=fc(['date']),iNm=fc(['name']),iPh=fc(['phone number','phone']);
+    // Pipeline columns by position (duplicate col names in sheet)
+    const iRe=fc(['reached']),iNI=H.indexOf('Not interested');
+    // Find positional indices for pipeline booleans
+    const iBC=H.findIndex((h,idx)=>h.toLowerCase()==='booked call'&&idx<20);
+    const iQu=H.findIndex((h,idx)=>h.toLowerCase()==='quoted'&&idx<20);
+    const iDT=H.findIndex((h,idx)=>h.toLowerCase()==='deposit taken'&&idx<20);
+    const iPC=fc(['project completed','completed']);
+    const iAm=fc(['amount']);
+
     LEADS=D.map(r=>{
-      if(!r[iD]||!(r[iD]||'').trim())return null;
+      if(!r[iD]||(r[iD]||'').trim()==='')return null;
       let ds=pld((r[iD]||'').trim());if(!ds)return null;
-      const t=v=>(v||'').toString().trim().toUpperCase()==='TRUE';
-      return{d:ds,name:(r[iNm]||'').trim(),phone:(r[iPh]||'').trim(),reached:t(r[iRe]),notInterested:t(r[iNI]),bookedCall:t(r[iBC]),bookedQuote:t(r[iBQ]),quoted:t(r[iQu]),deposit:t(r[iDT]),completed:t(r[iPC]),amount:(r[iAm]||'').trim()};
+      const t=idx=>idx>-1&&(r[idx]||'').toString().trim().toUpperCase()==='TRUE';
+      return{d:ds,name:(r[iNm]||'').trim(),phone:(r[iPh]||'').trim(),
+        reached:t(iRe),notInterested:t(iNI),bookedCall:t(iBC),
+        bookedQuote:false,quoted:t(iQu),deposit:t(iDT),
+        completed:t(iPC),amount:iAm>-1?(r[iAm]||'').trim():''};
     }).filter(Boolean);cb();
-  },error:function(){LEADS=[];cb()}});
+  },function(){LEADS=[];cb()});
 }
 
 function pf(v){return parseFloat(v)||0}function pi(v){return parseInt(v)||0}
