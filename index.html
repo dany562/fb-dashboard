@@ -69,7 +69,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-h
 .kdelta.up{background:var(--gn-s);color:var(--gn)}
 .kdelta.down{background:var(--rs-s);color:var(--rs)}
 .kdelta.flat{background:rgba(255,255,255,.05);color:var(--tx3)}
-.cgrid{display:grid;gap:12px;margin-bottom:22px}.cgrid.c2{grid-template-columns:1.6fr 1fr}.cgrid.c2e{grid-template-columns:1fr 1fr}
+.cgrid{display:grid;gap:12px;margin-bottom:22px}.cgrid.c2{grid-template-columns:1.6fr 1fr}.cgrid.c2e{grid-template-columns:1fr 1fr}.cgrid.c3{grid-template-columns:1fr 1fr 1fr}
 .cc{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:20px;min-width:0;overflow:hidden}
 .cc h3{font-size:13.5px;font-weight:600;margin-bottom:3px}.cc .csub{font-size:11.5px;color:var(--tx3);margin-bottom:16px}
 .cc .cw{position:relative;width:100%;height:260px;max-height:260px}
@@ -93,7 +93,7 @@ td.hl{color:var(--ac);font-weight:600}
 .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
 .tag-g{background:var(--gn-s);color:var(--gn)}.tag-r{background:var(--rs-s);color:var(--rs)}
 .foot{text-align:center;margin-top:36px;font-size:11px;color:var(--tx3)}
-@media(max-width:920px){.cgrid.c2,.cgrid.c2e{grid-template-columns:1fr}.wrap{padding:16px}.krow{grid-template-columns:repeat(2,1fr)}.scard{padding:28px 20px}.funnel-label{width:80px;font-size:10px}}
+@media(max-width:920px){.cgrid.c2,.cgrid.c2e,.cgrid.c3{grid-template-columns:1fr}.wrap{padding:16px}.krow{grid-template-columns:repeat(2,1fr)}.scard{padding:28px 20px}.funnel-label{width:80px;font-size:10px}}
 @media(max-width:550px){.krow{grid-template-columns:1fr}}
 @keyframes fu{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 .an{animation:fu .4s ease forwards;opacity:0}
@@ -147,17 +147,22 @@ td.hl{color:var(--ac);font-weight:600}
 
   <div class="sdiv an" style="animation-delay:.14s"><h2>&#128200; Ad Performance</h2><div class="line"></div></div>
   <div class="krow an" style="animation-delay:.16s" id="kpis"></div>
-  <div class="cgrid c2 an" style="animation-delay:.2s">
-    <div class="cc"><h3>Daily Performance</h3><div class="csub">Spend & clicks over time</div><div class="cw"><canvas id="chDaily"></canvas></div></div>
-    <div class="cc"><h3>Gender Split</h3><div class="csub">Share of ad spend</div><div class="cw"><canvas id="chGender"></canvas></div></div>
+
+  <!-- 3 Supermetrics-style dual-axis line charts -->
+  <div class="cgrid c3 an" style="animation-delay:.2s">
+    <div class="cc"><h3>Spend & Avg. CPC</h3><div class="csub">Daily cost vs cost per click</div><div class="cw"><canvas id="chSpendCpc"></canvas></div></div>
+    <div class="cc"><h3>Clicks & CTR</h3><div class="csub">Daily clicks vs click-through rate</div><div class="cw"><canvas id="chClicksCtr"></canvas></div></div>
+    <div class="cc"><h3>Leads & Cost per Lead</h3><div class="csub">Daily leads vs acquisition cost</div><div class="cw"><canvas id="chLeadsCpl"></canvas></div></div>
   </div>
+
+  <!-- Demographics row -->
   <div class="cgrid c2 an" style="animation-delay:.24s">
+    <div class="cc"><h3>Gender Split</h3><div class="csub">Share of ad spend</div><div class="cw"><canvas id="chGender"></canvas></div></div>
     <div class="cc"><h3>Spend by Age</h3><div class="csub">Budget by demographic</div><div class="cw"><canvas id="chAgeS"></canvas></div></div>
-    <div class="cc"><h3>CTR by Age</h3><div class="csub">Click-through rate</div><div class="cw"><canvas id="chAgeC"></canvas></div></div>
   </div>
   <div class="cgrid c2 an" style="animation-delay:.28s">
+    <div class="cc"><h3>CTR by Age</h3><div class="csub">Click-through rate</div><div class="cw"><canvas id="chAgeC"></canvas></div></div>
     <div class="cc"><h3>Avg Spend by Day of Week</h3><div class="csub">Best performing days</div><div class="cw"><canvas id="chDowS"></canvas></div></div>
-    <div class="cc"><h3>Avg Clicks by Day of Week</h3><div class="csub">Peak engagement days</div><div class="cw"><canvas id="chDowC"></canvas></div></div>
   </div>
 
   <div id="leadsSection" style="display:none">
@@ -318,20 +323,26 @@ function rKPI(){
   const cr=F.filter(r=>r.cr>0);const ac=cr.length?cr.reduce((a,r)=>a+r.cr,0)/cr.length:0;
   const ud=[...new Set(F.map(r=>r.d))].length;const ad=ud?ts/ud:0;
   const lc=FL.length;const cpal=lc>0?ts/lc:0;
+  const cpc=tc>0?ts/tc:0;
+  const convRate=tc>0?(lc/tc*100):0;
 
   // Previous period
   const pts=PF.reduce((a,r)=>a+r.sp,0),ptc=PF.reduce((a,r)=>a+r.cl,0);
   const pcr=PF.filter(r=>r.cr>0);const pac=pcr.length?pcr.reduce((a,r)=>a+r.cr,0)/pcr.length:0;
   const pud=[...new Set(PF.map(r=>r.d))].length;const pad=pud?pts/pud:0;
   const plc=PFL.length;const pcpal=plc>0?pts/plc:0;
+  const pcpc=ptc>0?pts/ptc:0;
+  const pconvRate=ptc>0?(plc/ptc*100):0;
 
   const k=[
-    {l:'Total Spend',v:'$'+ts.toFixed(2),d:delta(ts,pts,true),c:'var(--ac)',bg:'var(--ac-s)',i:'\uD83D\uDCB0'},
-    {l:'Link Clicks',v:tc.toLocaleString(),d:delta(tc,ptc),c:'var(--gn)',bg:'var(--gn-s)',i:'\uD83D\uDDB1\uFE0F'},
+    {l:'Link Clicks',v:tc.toLocaleString(),d:delta(tc,ptc),c:'var(--ac)',bg:'var(--ac-s)',i:'\uD83D\uDDB1\uFE0F'},
+    {l:'Total Spend',v:'$'+ts.toFixed(2),d:delta(ts,pts,true),c:'var(--gn)',bg:'var(--gn-s)',i:'\uD83D\uDCB0'},
     {l:'Avg CTR',v:ac.toFixed(2)+'%',d:delta(ac,pac),c:'var(--pp)',bg:'var(--pp-s)',i:'\uD83D\uDCCA'},
-    {l:'Total Leads',v:lc.toLocaleString(),d:delta(lc,plc),c:'var(--cy)',bg:'var(--cy-s)',i:'\uD83C\uDFAF'},
-    {l:'Cost / Lead',v:cpal>0?'$'+cpal.toFixed(2):'\u2014',d:delta(cpal,pcpal,true),c:'var(--am)',bg:'var(--am-s)',i:'\uD83D\uDCB5'},
-    {l:'Daily Spend',v:'$'+ad.toFixed(2),d:delta(ad,pad,true),c:'var(--rs)',bg:'var(--rs-s)',i:'\uD83D\uDCC5'},
+    {l:'Avg CPC',v:'$'+cpc.toFixed(2),d:delta(cpc,pcpc,true),c:'var(--am)',bg:'var(--am-s)',i:'\uD83D\uDCB5'},
+    {l:'Leads',v:lc.toLocaleString(),d:delta(lc,plc),c:'var(--cy)',bg:'var(--cy-s)',i:'\uD83C\uDFAF'},
+    {l:'Cost / Lead',v:cpal>0?'$'+cpal.toFixed(2):'\u2014',d:delta(cpal,pcpal,true),c:'var(--rs)',bg:'var(--rs-s)',i:'\uD83D\uDCB8'},
+    {l:'Conv. Rate',v:convRate.toFixed(2)+'%',d:delta(convRate,pconvRate),c:'var(--pp)',bg:'var(--pp-s)',i:'\uD83D\uDD04'},
+    {l:'Daily Spend',v:'$'+ad.toFixed(2),d:delta(ad,pad,true),c:'var(--gn)',bg:'var(--gn-s)',i:'\uD83D\uDCC5'},
   ];
   $('kpis').innerHTML=k.map(k=>`<div class="kcard"><div class="kico" style="background:${k.bg};color:${k.c}">${k.i}</div><div class="klab">${k.l}</div><div class="kval" style="color:${k.c}">${k.v}</div>${k.d}</div>`).join('');
 }
@@ -382,18 +393,35 @@ const TD={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{col
 function dc(id){if(CH[id]){CH[id].destroy();delete CH[id]}}
 
 function rDaily(){
-  dc('daily');const m={};F.forEach(r=>{if(!m[r.d])m[r.d]={s:0,c:0};m[r.d].s+=r.sp;m[r.d].c+=r.cl});
-  // Merge lead counts
+  const m={};F.forEach(r=>{if(!m[r.d])m[r.d]={s:0,c:0,crS:0,crN:0};m[r.d].s+=r.sp;m[r.d].c+=r.cl;if(r.cr>0){m[r.d].crS+=r.cr;m[r.d].crN++}});
   const lm={};FL.forEach(r=>{lm[r.d]=(lm[r.d]||0)+1});
-  const ls=Object.keys(m).sort(),sp=ls.map(d=>m[d].s),cl=ls.map(d=>m[d].c),ld=ls.map(d=>lm[d]||0);
-  const hasLeads=ld.some(v=>v>0);
-  const datasets=[
-    {label:'Spend ($)',data:sp,backgroundColor:'rgba(79,140,255,.45)',borderColor:'#4F8CFF',borderWidth:1,borderRadius:4,yAxisID:'y',order:3},
-    {label:'Clicks',data:cl,type:'line',borderColor:'#34D399',backgroundColor:'rgba(52,211,153,.07)',borderWidth:2,pointRadius:2,pointBackgroundColor:'#34D399',fill:false,tension:.35,yAxisID:'y1',order:1},
-  ];
-  if(hasLeads)datasets.push({label:'Leads',data:ld,type:'line',borderColor:'#22D3EE',backgroundColor:'rgba(34,211,238,.08)',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#22D3EE',fill:false,tension:.3,yAxisID:'y1',order:0,borderDash:[]});
-  CH.daily=new Chart($('chDaily'),{type:'bar',data:{labels:ls.map(d=>{const p=d.split('-');return p[1]+'/'+p[2]}),datasets},options:{...TD,scales:{...TD.scales,y:{...TD.scales.y,position:'left',title:{display:true,text:'Spend ($)',color:'#4E5974',font:{size:9.5,family:'DM Sans'}}},y1:{...TD.scales.y,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Clicks / Leads',color:'#4E5974',font:{size:9.5,family:'DM Sans'}}}}}});
+  const ls=Object.keys(m).sort();
+  const lbls=ls.map(d=>{const p=d.split('-');return p[1]+'/'+p[2]});
+  const lnStyle={borderWidth:2,pointRadius:1.5,fill:false,tension:.3};
+
+  // Chart 1: Spend & Avg CPC
+  dc('spendCpc');
+  CH.spendCpc=new Chart($('chSpendCpc'),{type:'line',data:{labels:lbls,datasets:[
+    {label:'Spend ($)',data:ls.map(d=>m[d].s),...lnStyle,borderColor:'#E8ECF4',pointBackgroundColor:'#E8ECF4',yAxisID:'y'},
+    {label:'Avg CPC ($)',data:ls.map(d=>m[d].c>0?m[d].s/m[d].c:0),...lnStyle,borderColor:'#FBBF24',pointBackgroundColor:'#FBBF24',yAxisID:'y1'},
+  ]},options:{...TD,scales:{...TD.scales,y:{...TD.scales.y,position:'left',title:{display:true,text:'Spend',color:'#E8ECF4',font:{size:9,family:'DM Sans'}}},y1:{...TD.scales.y,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Avg CPC',color:'#FBBF24',font:{size:9,family:'DM Sans'}}}}}});
+
+  // Chart 2: Clicks & CTR
+  dc('clicksCtr');
+  CH.clicksCtr=new Chart($('chClicksCtr'),{type:'line',data:{labels:lbls,datasets:[
+    {label:'Clicks',data:ls.map(d=>m[d].c),...lnStyle,borderColor:'#E8ECF4',pointBackgroundColor:'#E8ECF4',yAxisID:'y'},
+    {label:'CTR (%)',data:ls.map(d=>m[d].crN>0?m[d].crS/m[d].crN:0),...lnStyle,borderColor:'#FBBF24',pointBackgroundColor:'#FBBF24',yAxisID:'y1'},
+  ]},options:{...TD,scales:{...TD.scales,y:{...TD.scales.y,position:'left',title:{display:true,text:'Clicks',color:'#E8ECF4',font:{size:9,family:'DM Sans'}}},y1:{...TD.scales.y,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'CTR %',color:'#FBBF24',font:{size:9,family:'DM Sans'}}}}}});
+
+  // Chart 3: Leads & Cost per Lead
+  dc('leadsCpl');
+  const ldD=ls.map(d=>lm[d]||0),cplD=ls.map(d=>{const l=lm[d]||0;return l>0?m[d].s/l:0});
+  CH.leadsCpl=new Chart($('chLeadsCpl'),{type:'line',data:{labels:lbls,datasets:[
+    {label:'Leads',data:ldD,...lnStyle,borderColor:'#E8ECF4',pointBackgroundColor:'#E8ECF4',yAxisID:'y'},
+    {label:'Cost/Lead ($)',data:cplD,...lnStyle,borderColor:'#FBBF24',pointBackgroundColor:'#FBBF24',yAxisID:'y1'},
+  ]},options:{...TD,scales:{...TD.scales,y:{...TD.scales.y,position:'left',title:{display:true,text:'Leads',color:'#E8ECF4',font:{size:9,family:'DM Sans'}}},y1:{...TD.scales.y,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Cost / Lead',color:'#FBBF24',font:{size:9,family:'DM Sans'}}}}}});
 }
+function rDow(){/* replaced by 3 main charts */}
 function rGender(){
   dc('gender');const m={};F.forEach(r=>{const g=r.ge||'unknown';m[g]=(m[g]||0)+r.sp});
   const ls=Object.keys(m),d=ls.map(g=>m[g]);const cs={male:'#4F8CFF',female:'#FB7185',unknown:'#4E5974'};
@@ -407,14 +435,6 @@ function rAge(){
   CH.ageS=new Chart($('chAgeS'),{type:'bar',data:{labels:a,datasets:[{data:sp,backgroundColor:gr.slice(0,a.length),borderRadius:5,borderSkipped:false}]},options:{...TD,plugins:{...TD.plugins,legend:{display:false},tooltip:{...TD.plugins.tooltip,callbacks:{label:c=>' $'+c.raw.toFixed(2)}}}}});
   CH.ageC=new Chart($('chAgeC'),{type:'bar',data:{labels:a,datasets:[{data:ct,backgroundColor:gr.slice(0,a.length).map(c=>c+'88'),borderColor:gr.slice(0,a.length),borderWidth:1.5,borderRadius:5,borderSkipped:false}]},options:{...TD,plugins:{...TD.plugins,legend:{display:false},tooltip:{...TD.plugins.tooltip,callbacks:{label:c=>' '+c.raw.toFixed(2)+'%'}}},scales:{...TD.scales,y:{...TD.scales.y,title:{display:true,text:'CTR %',color:'#4E5974',font:{size:9.5,family:'DM Sans'}}}}}});
 }
-function rDow(){
-  dc('dowS');dc('dowC');const dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const b=Array(7).fill(null).map(()=>({s:0,c:0,ds:new Set()}));
-  F.forEach(r=>{const d=new Date(r.d+'T00:00:00'),w=d.getDay();b[w].s+=r.sp;b[w].c+=r.cl;b[w].ds.add(r.d)});
-  const o=[1,2,3,4,5,6,0],ls=o.map(i=>dn[i]),sa=o.map(i=>b[i].ds.size?b[i].s/b[i].ds.size:0),ca=o.map(i=>b[i].ds.size?b[i].c/b[i].ds.size:0);
-  const mx1=Math.max(...sa)||1,mx2=Math.max(...ca)||1;
-  CH.dowS=new Chart($('chDowS'),{type:'bar',data:{labels:ls,datasets:[{data:sa,backgroundColor:sa.map(v=>`rgba(79,140,255,${(.28+v/mx1*.72).toFixed(2)})`),borderRadius:5,borderSkipped:false}]},options:{...TD,plugins:{...TD.plugins,legend:{display:false},tooltip:{...TD.plugins.tooltip,callbacks:{label:c=>' Avg $'+c.raw.toFixed(2)+'/day'}}}}});
-  CH.dowC=new Chart($('chDowC'),{type:'bar',data:{labels:ls,datasets:[{data:ca,backgroundColor:ca.map(v=>`rgba(52,211,153,${(.28+v/mx2*.72).toFixed(2)})`),borderRadius:5,borderSkipped:false}]},options:{...TD,plugins:{...TD.plugins,legend:{display:false},tooltip:{...TD.plugins.tooltip,callbacks:{label:c=>' Avg '+c.raw.toFixed(1)+' clicks/day'}}}}});
 }
 
 function rTable(){
