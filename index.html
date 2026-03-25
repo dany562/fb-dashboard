@@ -105,18 +105,15 @@ td.hl{color:var(--ac);font-weight:600}
 <div class="setup" id="setup"><div class="scard">
   <div class="slogo">&#9889;</div>
   <h2>Connect Client Google Sheet</h2>
-  <p>Paste the edit URL for each tab. Sheet must be shared as "Anyone with the link."</p>
+  <p>Paste any URL from the client's Google Sheet. The dashboard auto-loads the <strong>Facebook Data</strong> and <strong>Tracking</strong> tabs.</p>
   <div class="steps">
-    <div class="stp"><div class="stp-n">1</div><div class="stp-t"><strong>Share</strong> the Google Sheet → "Anyone with the link" → Viewer</div></div>
-    <div class="stp"><div class="stp-n">2</div><div class="stp-t">Open each tab, copy the URL from your browser, and paste below</div></div>
+    <div class="stp"><div class="stp-n">1</div><div class="stp-t"><strong>Share</strong> the Google Sheet &rarr; "Anyone with the link" &rarr; Viewer</div></div>
+    <div class="stp"><div class="stp-n">2</div><div class="stp-t">Paste the sheet URL below &mdash; that's it</div></div>
   </div>
   <div class="serr" id="serr"></div>
-  <div class="url-label">&#128202; Facebook Ads Data Tab (required)</div>
   <div class="url-row"><input class="url-in" id="surl" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=..." spellcheck="false"></div>
-  <div class="url-label">&#127919; Incoming Leads Tab (optional)</div>
-  <div class="url-row"><input class="url-in" id="surl2" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=..." spellcheck="false"></div>
   <div style="margin-top:14px"><button class="cbtn" id="sbtn" onclick="doConnect()">Connect</button></div>
-  <div class="shint">&#128161; For your management sheet:<br><code style="color:var(--ac);font-family:'JetBrains Mono',monospace;font-size:10px">=HYPERLINK("https://YOURDOMAIN/index.html?sheet="&amp;ENCODEURL(B2)&amp;"&amp;leads="&amp;ENCODEURL(C2),"&#x1F4CA; Dashboard")</code></div>
+  <div class="shint">&#128161; For your management sheet, just one column needed:<br><code style="color:var(--ac);font-family:'JetBrains Mono',monospace;font-size:10px">=HYPERLINK("https://YOURDOMAIN/index.html?sheet="&amp;ENCODEURL(B2),"&#x1F4CA; Dashboard")</code></div>
 </div></div>
 
 <div class="loader off" id="loader"><div class="spin"></div><p id="loadMsg">Fetching live data&hellip;</p></div>
@@ -188,30 +185,74 @@ td.hl{color:var(--ac);font-weight:600}
 </div>
 
 <script>
-let ADURL='',LEADURL='',ALL=[],LEADS=[],F=[],FL=[],CH={};
+let SHEETID='',ADURL='',LEADURL='',ALL=[],LEADS=[],F=[],FL=[],CH={};
 function $(id){return document.getElementById(id)}
 
-function fixUrl(raw){
-  let base='',gid='';const gm=raw.match(/gid=(\d+)/);if(gm)gid=gm[1];
-  if(raw.includes('/d/e/')){const m=raw.match(/(https:\/\/docs\.google\.com\/spreadsheets\/d\/e\/[^\/]+)/);if(m)base=m[1];let u=base+'/pub?output=csv';if(gid)u+='&gid='+gid;u+='&single=true';return u;}
-  else{const m=raw.match(/\/d\/([a-zA-Z0-9_-]+)/);if(m)base='https://docs.google.com/spreadsheets/d/'+m[1]+'/export';let u=base+'?format=csv';if(gid)u+='&gid='+gid;return u;}
+// Tab names (consistent across all clients)
+const AD_TAB='Facebook Data';
+const LEAD_TAB='Tracking';
+
+function extractSheetId(raw){
+  // From /d/e/XXXX (published)
+  let m=raw.match(/\/d\/e\/([^\/]+)/);
+  if(m)return{type:'pub',id:m[1]};
+  // From /d/XXXX (edit)
+  m=raw.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if(m)return{type:'edit',id:m[1]};
+  return null;
+}
+
+function buildTabUrl(info,tabName){
+  const enc=encodeURIComponent(tabName);
+  if(info.type==='pub'){
+    return'https://docs.google.com/spreadsheets/d/e/'+info.id+'/pub?output=csv&sheet='+enc+'&single=true';
+  }else{
+    // gviz endpoint supports sheet name and works with "anyone with link" sharing
+    return'https://docs.google.com/spreadsheets/d/'+info.id+'/gviz/tq?tqx=out:csv&sheet='+enc;
+  }
+}
+
+// Smart CSV fetch — handles gviz response quirks (sometimes wraps in quotes, BOM, etc.)
+function fetchCSV(url,onData,onErr){
+  const u=url+(url.includes('?')?'&':'?')+'_c='+Date.now();
+  Papa.parse(u,{download:true,header:false,skipEmptyLines:true,
+    complete:function(res){
+      if(!res.data||!res.data.length){onErr('empty');return}
+      // gviz sometimes wraps values in extra quotes or adds BOM — clean up
+      const cleaned=res.data.map(row=>row.map(cell=>{
+        if(cell===null||cell===undefined)return'';
+        let s=cell.toString();
+        // Strip BOM
+        if(s.charCodeAt(0)===0xFEFF)s=s.slice(1);
+        // Strip wrapping quotes that gviz sometimes adds
+        if(s.startsWith('"')&&s.endsWith('"')&&s.length>1)s=s.slice(1,-1);
+        return s.trim();
+      }));
+      onData(cleaned);
+    },
+    error:function(e){onErr(e?.message||'fetch error')}
+  });
 }
 
 function doConnect(){
-  let r1=$('surl').value.trim(),r2=$('surl2').value.trim();const e=$('serr');e.textContent='';
-  if(!r1){e.textContent='Paste the Facebook data tab URL.';return}
-  if(!r1.includes('docs.google.com/spreadsheets')){e.textContent='Not a Google Sheets link.';return}
-  ADURL=fixUrl(r1);LEADURL=r2&&r2.includes('docs.google.com')?fixUrl(r2):'';
+  let raw=$('surl').value.trim();const e=$('serr');e.textContent='';
+  if(!raw){e.textContent='Paste a Google Sheets URL.';return}
+  if(!raw.includes('docs.google.com/spreadsheets')){e.textContent='Not a Google Sheets link.';return}
+  const info=extractSheetId(raw);
+  if(!info){e.textContent='Could not extract sheet ID from URL.';return}
+  SHEETID=raw;
+  ADURL=buildTabUrl(info,AD_TAB);
+  LEADURL=buildTabUrl(info,LEAD_TAB);
   $('sbtn').disabled=true;$('sbtn').textContent='Connecting\u2026';fetchAll();
 }
-function doSwitch(){ADURL='';LEADURL='';$('surl').value='';$('surl2').value='';$('sbtn').disabled=false;$('sbtn').textContent='Connect';$('serr').textContent='';$('setup').classList.remove('off');$('dash').classList.remove('on');history.replaceState(null,'',location.pathname)}
+function doSwitch(){SHEETID='';ADURL='';LEADURL='';$('surl').value='';$('sbtn').disabled=false;$('sbtn').textContent='Connect';$('serr').textContent='';$('setup').classList.remove('off');$('dash').classList.remove('on');history.replaceState(null,'',location.pathname)}
 
 function fetchAll(){
-  $('loader').classList.remove('off');$('loadMsg').textContent='Fetching ad data\u2026';
-  fetchAds(()=>{if(LEADURL){$('loadMsg').textContent='Fetching lead data\u2026';fetchLeads(()=>done())}else{LEADS=[];done()}});
+  $('loader').classList.remove('off');$('loadMsg').textContent='Fetching Facebook Data tab\u2026';
+  fetchAds(()=>{$('loadMsg').textContent='Fetching Tracking tab\u2026';fetchLeads(()=>done())});
 }
 function done(){
-  const u=new window.URL(location);u.searchParams.set('sheet',ADURL);if(LEADURL)u.searchParams.set('leads',LEADURL);else u.searchParams.delete('leads');
+  const u=new window.URL(location);u.searchParams.set('sheet',SHEETID);u.searchParams.delete('leads');
   history.replaceState(null,'',u);
   $('setup').classList.add('off');$('dash').classList.add('on');$('loader').classList.add('off');
   $('upd').textContent='Updated '+new Date().toLocaleTimeString();$('sbtn').disabled=false;$('sbtn').textContent='Connect';
@@ -222,19 +263,19 @@ function done(){
 function fetchAds(cb){
   const u=ADURL+(ADURL.includes('?')?'&':'?')+'_c='+Date.now();
   Papa.parse(u,{download:true,header:false,skipEmptyLines:true,complete:function(res){
-    if(!res.data||!res.data.length){sErr('No ad data found.');$('loader').classList.add('off');return}
+    if(!res.data||!res.data.length){sErr('No data found on "'+AD_TAB+'" tab. Check the tab exists and sheet is shared.');$('loader').classList.add('off');return}
     const c0=(res.data[0]&&res.data[0][0]||'').toString();
     if(c0.includes('<!DOCTYPE')||c0.includes('<html')){sErr('Got HTML instead of CSV. Set sheet to "Anyone with link → Viewer".');$('loader').classList.add('off');return}
     let hi=-1;for(let i=0;i<Math.min(res.data.length,10);i++){const j=res.data[i].map(c=>(c||'').toString().toLowerCase()).join(' ');if(j.includes('date')&&(j.includes('spent')||j.includes('spend'))){hi=i;break}}
     if(hi===-1)for(let i=0;i<Math.min(res.data.length,10);i++){if(res.data[i].some(c=>(c||'').toString().toLowerCase().includes('date'))){hi=i;break}}
-    if(hi===-1){sErr('Can\'t find header row.');$('loader').classList.add('off');return}
+    if(hi===-1){sErr('Can\'t find header row on "'+AD_TAB+'" tab. Found: '+((res.data[0]||[]).slice(0,5).join(', ')));$('loader').classList.add('off');return}
     const H=res.data[hi].map(c=>(c||'').toString().trim()),D=res.data.slice(hi+1);
     const fc=kw=>{let i=H.findIndex(h=>kw.some(w=>h.toLowerCase()===w));if(i===-1)i=H.findIndex(h=>kw.some(w=>h.toLowerCase().includes(w)));return i};
     const iD=fc(['date start','date_start','date']),iAS=fc(['ad set name']),iCP=fc(['campaign name']),iAG=fc(['age']),iGE=fc(['gender']),iCR=fc(['ctr (link click-through rate)','ctr']),iCL=fc(['link clicks','clicks']),iPL=fc(['cost per leads (total)','cost per lead']),iSP=fc(['amount spent','spend']),iAC=fc(['account name']);
-    if(iD===-1||iSP===-1){sErr('Need "Date Start" & "Amount spent". Found: '+H.slice(0,8).join(', '));$('loader').classList.add('off');return}
+    if(iD===-1||iSP===-1){sErr('Need "Date Start" & "Amount spent" on "'+AD_TAB+'" tab. Found: '+H.slice(0,8).join(', '));$('loader').classList.add('off');return}
     ALL=D.map(r=>({d:(r[iD]||'').trim(),as:iAS>-1?(r[iAS]||'').trim():'',cp:iCP>-1?(r[iCP]||'').trim():'',ag:iAG>-1?(r[iAG]||'').trim():'',ge:iGE>-1?(r[iGE]||'').toLowerCase().trim():'',cr:iCR>-1?pf(r[iCR]):0,cl:iCL>-1?pi(r[iCL]):0,pl:iPL>-1?pf(r[iPL]):0,sp:iSP>-1?pf(r[iSP]):0,ac:iAC>-1?(r[iAC]||'').trim():''})).filter(r=>r.d&&r.d.match(/^\d{4}/));
     $('cname').textContent=(ALL.find(r=>r.ac)?.ac||'Client').trim();cb();
-  },error:function(e){sErr('Fetch failed: '+(e?.message||''));$('loader').classList.add('off')}});
+  },error:function(e){sErr('Failed to fetch "'+AD_TAB+'" tab. Check sharing settings. '+(e?.message||''));$('loader').classList.add('off')}});
 }
 
 function fetchLeads(cb){
@@ -471,8 +512,18 @@ function rTable(){
 // ═══ BOOT ═══
 (function boot(){
   const p=new URLSearchParams(location.search);
-  const s=p.get('sheet'),l=p.get('leads');
-  if(s){ADURL=fixUrl(s);LEADURL=l?fixUrl(l):'';$('setup').classList.add('off');fetchAll();return}
+  const s=p.get('sheet');
+  if(s){
+    SHEETID=s;
+    const info=extractSheetId(s);
+    if(info){
+      ADURL=buildTabUrl(info,AD_TAB);
+      LEADURL=buildTabUrl(info,LEAD_TAB);
+      $('setup').classList.add('off');
+      fetchAll();
+      return;
+    }
+  }
   $('setup').classList.remove('off');
 })();
 </script>
