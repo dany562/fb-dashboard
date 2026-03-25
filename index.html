@@ -428,7 +428,6 @@ function rAge(){
   CH.ageS=new Chart($('chAgeS'),{type:'bar',data:{labels:a,datasets:[{data:sp,backgroundColor:gr.slice(0,a.length),borderRadius:5,borderSkipped:false}]},options:{...TD,plugins:{...TD.plugins,legend:{display:false},tooltip:{...TD.plugins.tooltip,callbacks:{label:c=>' $'+c.raw.toFixed(2)}}}}});
   CH.ageC=new Chart($('chAgeC'),{type:'bar',data:{labels:a,datasets:[{data:ct,backgroundColor:gr.slice(0,a.length).map(c=>c+'88'),borderColor:gr.slice(0,a.length),borderWidth:1.5,borderRadius:5,borderSkipped:false}]},options:{...TD,plugins:{...TD.plugins,legend:{display:false},tooltip:{...TD.plugins.tooltip,callbacks:{label:c=>' '+c.raw.toFixed(2)+'%'}}},scales:{...TD.scales,y:{...TD.scales.y,title:{display:true,text:'CTR %',color:'#4E5974',font:{size:9.5,family:'DM Sans'}}}}}});
 }
-}
 
 function rTable(){
   const m={};F.forEach(r=>{if(!m[r.d])m[r.d]={s:0,c:0,cs:0,cn:0,ps:0,pn:0};m[r.d].s+=r.sp;m[r.d].c+=r.cl;if(r.cr>0){m[r.d].cs+=r.cr;m[r.d].cn++}if(r.pl>0){m[r.d].ps+=r.pl;m[r.d].pn++}});
